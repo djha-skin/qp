@@ -1,0 +1,20 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#|
+exec ros -Q -- $0 "$@"
+|#
+(progn ;;init forms
+  (ros:ensure-asdf)
+  (asdf:load-system #:com.djhaskin.qp)
+  )
+
+(defpackage :ros.script.qp.3923330566
+  (:use :cl)
+  (:import-from #:com.djhaskin.qp)
+(in-package :ros.script.qp.3923330566)
+
+(defun main (&rest argv)
+  (declare (ignorable argv))
+  (qp:main argv))
+
+;;; vim: set ft=lisp lisp:
