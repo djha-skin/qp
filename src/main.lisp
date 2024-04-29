@@ -24,24 +24,36 @@
 
 (defun from (options)
   (declare (ignore options))
-  (format t "from~%"))
+  (unless (gethash :input options)
+    (error 'cl-i:exit-error :status :cl-usage-error :'
+    (error "No input file specified."))
+  (let* ((
+  (let ((result (make-hash-table :test #'equal)))
+    (setf (gethash :subcommand result) "from")
+    result))
 
 (defun none (options)
   (declare (ignore options))
-  (format t "none~%"))
+  (let ((result (make-hash-table :test #'equal)))
+    (setf (gethash :subcommand result) "none")
+    result))
 
 (defun to (options)
   (declare (ignore options))
-  (format t "from~%"))
+  (let ((result (make-hash-table :test #'equal)))
+    (setf (gethash :subcommand result) "to")
+    result))
+
+(defparameter argv uiop:*command-line-arguments*)
 
 (defun main (argv)
   (multiple-value-bind (code results)
       (cl-i:execute-program
         "qp"
         (cl-i:system-environment-variables)
-        '((() . #'none)
-          (("from") . #'from)
-          (("to") . #'to))
+        `((() . ,#'none)
+          (("from") . ,#'from)
+          (("to") . ,#'to))
         :cli-arguments argv
         :helps
         '((() . "Prints this help message.")
