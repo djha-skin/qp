@@ -64,19 +64,19 @@
                                      (elt reg-starts 0)
                                      (elt reg-ends 0))))
     (cdr (assoc (parse-integer first-capture-group :radix 16)
-                *ascii-table*))
-    ))
+                *ascii-table*))))
 
 (defun from (options)
   (let ((result (make-hash-table :test #'equal))
         (encoded (cl-i:ensure-option-exists :encoded options)))
-
     (cl-ppcre:regex-replace-all
-      "=\r?\n" encoded "")
+      "=[^0-9A-Fa-f]" encoded "" :multi-line-mode t)
+    (format t "~A~%" encoded)
     (cl-ppcre:regex-replace-all
       "=([0-9A-Fa-f][0-9A-Fa-f])"
       encoded
       #'replace-hex)
+    (format t "~A~%" encoded)
     (setf (gethash :decoded result)
           encoded)
     (setf (gethash :status result) :successful)
