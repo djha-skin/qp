@@ -23,75 +23,55 @@
 
 (in-package #:com.djhaskin.qp)
 
+(declaim (inline byte-to-hex))
+(defun byte-to-hex (b)
+  (declare (type (unsigned-byte 8) b))
+  (cond ((and (>= b 48)
+              (<= b 57))
+         (- b 48))
+        ((and (>= b 65)
+              (<= b 70))
+         (+ 10 (- b 55)))
+        ((and (>= b 97)
+              (<= b 102))
+         (+ 10 (- b 97)))))
 
-;;; `CODE-CHAR` is not portable, so here we are.
-;;; List of an ascii table in the form of an alist,
-;;; Where the key is the ascii code and the value is the character.
-(defparameter *ascii-table*
-  '((32 . " ") (10 . "\n") (9 . "\t") (13 . "\r")
-    (33 . "!") (34 . "\"") (35 . "#") (36 . "$")
-    (37 . "%") (38 . "&") (39 . "'") (40 . "(")
-    (41 . ")") (42 . "*") (43 . "+") (44 . ",")
-    (45 . "-") (46 . ".") (47 . "/") (48 . "0")
-    (49 . "1") (50 . "2") (51 . "3") (52 . "4")
-    (53 . "5") (54 . "6") (55 . "7") (56 . "8")
-    (57 . "9") (58 . ":") (59 . ";") (60 . "<")
-    (61 . "=") (62 . ">") (63 . "?") (64 . "@")
-    (65 . "A") (66 . "B") (67 . "C") (68 . "D")
-    (69 . "E") (70 . "F") (71 . "G") (72 . "H")
-    (73 . "I") (74 . "J") (75 . "K") (76 . "L")
-    (77 . "M") (78 . "N") (79 . "O") (80 . "P")
-    (81 . "Q") (82 . "R") (83 . "S") (84 . "T")
-    (85 . "U") (86 . "V") (87 . "W") (88 . "X")
-    (89 . "Y") (90 . "Z") (91 . "[") (92 . "\\")
-    (93 . "]") (94 . "^") (95 . "_") (96 . "`")
-    (97 . "a") (98 . "b") (99 . "c") (100 . "d")
-    (101 . "e") (102 . "f") (103 . "g") (104 . "h")
-    (105 . "i") (106 . "j") (107 . "k") (108 . "l")
-    (109 . "m") (110 . "n") (111 . "o") (112 . "p")
-    (113 . "q") (114 . "r") (115 . "s") (116 . "t")
-    (117 . "u") (118 . "v") (119 . "w") (120 . "x")
-    (121 . "y") (122 . "z") (123 . "{") (124 . "|")
-    (125 . "}") (126 . "~")))
 
-(declaim (inline replace-hex))
-(defun replace-hex (target-string
-                     start end
-                     match-start match-end
-                     reg-starts reg-ends)
-  (declare (ignore start end match-start match-end))
-  (let ((first-capture-group (subseq target-string
-                                     (elt reg-starts 0)
-                                     (elt reg-ends 0))))
-    (cdr (assoc (parse-integer first-capture-group :radix 16)
-                *ascii-table*))))
+(declaim (inline hex-number))
+(defun hex-number (b1 b2)
+  (declare (type (unsigned-byte 8) b1 b2))
+  (let ((h1 (byte-to-hex b1))
+        (h2 (byte-to-hex b2)))
+    (when (and h1 h2)
+      (+ (* 16 h1) h2))))
+
+(defun extract-byte (strm)
+  (let ((b (read-byte strm nil nil)))
+    (when b
+        (if (char= (code-char b) #\=)
+            (let ((b2 (byte-to-hex (read-byte strm))))
+              (when b2
+                  (let ((b3 (byte-to-hex (read-byte strm))))
+                    (when b3
+                    (+ (* 16 b2) b3))
+                  (extract-byte strm))))
+            b))))
+
+(defun transfer (stream-a stream-b)
+  (loop for b = (extract-byte stream-a)
+        while b do
+        (write-byte b stream-b)))
 
 (defun from (options)
-  (let ((result (make-hash-table :test #'equal))
-        (encoded (cl-i:ensure-option-exists :encoded options)))
-    (cl-ppcre:regex-replace-all
-      "=[^0-9A-Fa-f]" encoded "" :multi-line-mode t)
-    (format t "~A~%" encoded)
-    (cl-ppcre:regex-replace-all
-      "=([0-9A-Fa-f][0-9A-Fa-f])"
-      encoded
-      #'replace-hex)
-    (format t "~A~%" encoded)
-    (setf (gethash :decoded result)
-          encoded)
+  (let* ((result (make-hash-table :test #'equal))
+         (ofile (cl-i:ensure-option-exists :file options)))
+    (if (equalp ofile "-")
+        (transfer *standard-input* *standard-output*)
+        (with-open-file (strm ofile :direction :output
+                               :if-exists :supersede
+                               :element-type '(unsigned-byte 8))
+          (transfer strm *standard-output*)))
     (setf (gethash :status result) :successful)
-    result))
-
-(defun none (options)
-  (declare (ignore options))
-  (let ((result (make-hash-table :test #'equal)))
-    (setf (gethash :subcommand result) "none")
-    result))
-
-(defun to (options)
-  (declare (ignore options))
-  (let ((result (make-hash-table :test #'equal)))
-    :cc
     result))
 
 (defparameter argv uiop:*command-line-arguments*)
@@ -100,11 +80,16 @@
   (cl-i:execute-program
     "qp"
     (cl-i:system-environment-variables)
-    `((() . ,#'none)
-      (("from") . ,#'from)
-      (("to") . ,#'to))
+    `((() . ,#'from))
     :cli-arguments argv
+    :cli-aliases
+    '(("-h" . "help")
+      ("--help" . "help")
+      ("-f" . "--set-file")
+      ("--file" . "--set-file")
+      ("--direction" . "--nrdl-direction"))
+    :defaults
+    '((:file . "-"))
     :helps
-    '((() . "Prints this help message.")
-      (("from") . "Convert from quoted printable")
-      (("to") . "Convert to quoted printable"))))
+    '((() . "Converts between quoted printable and binary."))
+    :suppress-final-output t))
