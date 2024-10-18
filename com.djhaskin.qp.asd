@@ -4,7 +4,7 @@
   :license "MIT"
   :depends-on (
                "com.djhaskin.nrdl"
-               "com.djhaskin.cl-i"
+               "com.djhaskin.cliff"
                "alexandria"
                "trivial-features"
                "cl-ppcre"

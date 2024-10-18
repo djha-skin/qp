@@ -13,11 +13,11 @@
     Quoted Printable Content Character Encoding Tool.
     ")
   (:import-from #:com.djhaskin.nrdl)
-  (:import-from #:com.djhaskin.cl-i)
+  (:import-from #:com.djhaskin.cliff)
   (:import-from #:cl-ppcre)
   (:local-nicknames
     (#:nrdl #:com.djhaskin.nrdl)
-    (#:cl-i #:com.djhaskin.cl-i)
+    (#:cliff #:com.djhaskin.cliff)
     )
   (:export #:main))
 
@@ -51,10 +51,9 @@
         (if (char= (code-char b) #\=)
             (let ((b2 (byte-to-hex (read-byte strm))))
               (when b2
-                  (let ((b3 (byte-to-hex (read-byte strm))))
-                    (when b3
-                    (+ (* 16 b2) b3))
-                  (extract-byte strm))))
+                (let ((b3 (byte-to-hex (read-byte strm))))
+                  (when b3
+                  (+ (* 16 b2) b3)))))
             b))))
 
 (defun transfer (stream-a stream-b)
@@ -64,7 +63,7 @@
 
 (defun from (options)
   (let* ((result (make-hash-table :test #'equal))
-         (ofile (cl-i:ensure-option-exists :file options)))
+         (ofile (cliff:ensure-option-exists :file options)))
     (if (equalp ofile "-")
         (transfer *standard-input* *standard-output*)
         (with-open-file (strm ofile :direction :output
@@ -77,10 +76,12 @@
 (defparameter argv uiop:*command-line-arguments*)
 
 (defun main (argv)
-  (cl-i:execute-program
+  (cliff:execute-program
     "qp"
-    (cl-i:system-environment-variables)
-    `((() . ,#'from))
+    (cliff:system-environment-variables)
+    :default-function #'from
+    :helps
+    '((() . "Converts between quoted printable and binary."))
     :cli-arguments argv
     :cli-aliases
     '(("-h" . "help")
@@ -90,6 +91,4 @@
       ("--direction" . "--nrdl-direction"))
     :defaults
     '((:file . "-"))
-    :helps
-    '((() . "Converts between quoted printable and binary."))
     :suppress-final-output t))
