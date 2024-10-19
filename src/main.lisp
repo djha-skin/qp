@@ -78,11 +78,11 @@
 (defun main (argv)
   (cliff:execute-program
     "qp"
-    (cliff:system-environment-variables)
     :default-function #'from
     :helps
     '((() . "Converts between quoted printable and binary."))
     :cli-arguments argv
+    :reference-file #P"./.git/HEAD"
     :cli-aliases
     '(("-h" . "help")
       ("--help" . "help")
