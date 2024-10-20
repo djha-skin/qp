@@ -7,7 +7,7 @@
 (in-package #:cl-user)
 
 (defpackage
-  #:com.djhaskin.qp (:use #:cl #:arrows)
+  #:com.djhaskin.qp (:use #:cl)
   (:documentation
     "
     Quoted Printable Content Character Encoding Tool.
@@ -26,12 +26,15 @@
 (declaim (inline byte-to-hex))
 (defun byte-to-hex (b)
   (declare (type (unsigned-byte 8) b))
+         ;; If the digit is 0-9
   (cond ((and (>= b 48)
               (<= b 57))
          (- b 48))
+        ;; If the digit is A-F
         ((and (>= b 65)
               (<= b 70))
-         (+ 10 (- b 55)))
+         (+ 10 (- b 65)))
+        ;; If the digit is a-f
         ((and (>= b 97)
               (<= b 102))
          (+ 10 (- b 97)))))
