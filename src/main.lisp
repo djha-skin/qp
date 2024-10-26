@@ -27,33 +27,24 @@
 (defun byte-to-hex (b)
   (declare (type (unsigned-byte 8) b))
   ;; If the digit is 0-9
-  (cond ((and (>= b 48)
-              (<= b 57))
-         (- b 48))
+  (cond ((and (>= b #x30)
+              (<= b #x39))
+         (- b #x30))
         ;; If the digit is A-F
-        ((and (>= b 65)
-              (<= b 70))
-         (+ 10 (- b 65)))
+        ((and (>= b #x41)
+              (<= b #x46))
+         (+ 10 (- b #x41)))
         ;; If the digit is a-f
-        ((and (>= b 97)
-              (<= b 102))
-         (+ 10 (- b 97)))))
-
-
-(declaim (inline hex-number))
-(defun hex-number (b1 b2)
-  (declare (type (unsigned-byte 8) b1 b2))
-  (let ((h1 (byte-to-hex b1))
-        (h2 (byte-to-hex b2)))
-    (when (and h1 h2)
-      (+ (* 16 h1) h2))))
+        ((and (>= b #x61)
+              (<= b #x66))
+         (+ 10 (- b #x61)))))
 
 (defun extract-byte (strm)
   (let ((b (read-byte strm nil nil)))
     (when b
-      (if (char= (code-char b) #\=)
+      (if (= b #x3D) ;; character `=`
           (let ((next (read-byte strm)))
-            (if (= next 10)
+            (if (= next #x0A)
                 :continue
                 (let ((b2 (byte-to-hex next)))
                   (when b2
@@ -62,21 +53,52 @@
                         (+ (* 16 b2) b3)))))))
           b))))
 
-(defun transfer (stream-a stream-b)
-  (loop for b = (extract-byte stream-a)
-        while b do
-        (when (not (eql b :continue))
-          (write-byte b stream-b))))
+(defparameter *col* 0)
 
-(defun from (options)
+(defun write-limited (b strm)
+  (when (or (>= *col* 75)
+            (and (= b #x3D)
+                 (> *col* 72)))
+    (write-byte #x3D strm)
+    (write-byte #x0A strm)
+    (setf *col* 0))
+  (write-byte b strm)
+  (incf *col*))
+
+(defun hex-digit-byte (d)
+  (if (and (>= d 0)
+           (< d 10))
+      (+ d #x30)
+      (+ (- d 10) #x41)))
+
+
+(defun transfer (options stream-a stream-b)
+  (let ((rev (gethash :reverse options)))
+    (if rev
+        (loop for b = (read-byte stream-a nil nil)
+              while b do
+              (if (and (>= b #x20) (< b #x7f) (/= b #x3d))
+                  (write-limited b stream-b)
+                  (progn
+                    (write-limited #x3D stream-b)
+                    (multiple-value-bind (quotient remainder)
+                        (truncate b 16)
+                      (write-limited (hex-digit-byte quotient) stream-b)
+                      (write-limited (hex-digit-byte remainder) stream-b)))))
+        (loop for b = (extract-byte stream-a)
+              while b do
+              (when (not (eql b :continue))
+                (write-byte b stream-b))))))
+
+(defun qp (options)
   (let* ((result (make-hash-table :test #'equal))
          (ofile (cliff:ensure-option-exists :file options)))
     (if (equalp ofile "-")
-        (transfer *standard-input* *standard-output*)
+        (transfer options *standard-input* *standard-output*)
         (with-open-file (strm ofile :direction :output
                                :if-exists :supersede
                                :element-type '(unsigned-byte 8))
-          (transfer strm *standard-output*)))
+          (transfer options strm *standard-output*)))
     (setf (gethash :status result) :successful)
     result))
 
@@ -85,7 +107,7 @@
 (defun main (argv)
   (cliff:execute-program
     "qp"
-    :default-function #'from
+    :default-function #'qp
     :helps
     '((() . "Converts between quoted printable and binary."))
     :cli-arguments argv
@@ -95,11 +117,9 @@
       ("--help" . "help")
       ("-f" . "--set-file")
       ("--file" . "--set-file")
-      ("-u" . "--enable-unix-conversion")
-      ("-U" . "--disable-unix-conversion")
-      ("--unix" . "--enable-unix-conversion")
-      ("--unix" . "--disable-unix-conversion")
-      ("--direction" . "--nrdl-direction"))
+      ("--reverse" . "--enable-reverse")
+      ("-r" . "--enable-reverse")
+      ("-R" . "--disable-reverse"))
     :defaults
     '((:file . "-"))
     :suppress-final-output t))
