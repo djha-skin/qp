@@ -26,7 +26,7 @@
 (declaim (inline byte-to-hex))
 (defun byte-to-hex (b)
   (declare (type (unsigned-byte 8) b))
-         ;; If the digit is 0-9
+  ;; If the digit is 0-9
   (cond ((and (>= b 48)
               (<= b 57))
          (- b 48))
@@ -51,18 +51,22 @@
 (defun extract-byte (strm)
   (let ((b (read-byte strm nil nil)))
     (when b
-        (if (char= (code-char b) #\=)
-            (let ((b2 (byte-to-hex (read-byte strm))))
-              (when b2
-                (let ((b3 (byte-to-hex (read-byte strm))))
-                  (when b3
-                  (+ (* 16 b2) b3)))))
-            b))))
+      (if (char= (code-char b) #\=)
+          (let ((next (read-byte strm)))
+            (if (= next 10)
+                :continue
+                (let ((b2 (byte-to-hex next)))
+                  (when b2
+                    (let ((b3 (byte-to-hex (read-byte strm))))
+                      (when b3
+                        (+ (* 16 b2) b3)))))))
+          b))))
 
 (defun transfer (stream-a stream-b)
   (loop for b = (extract-byte stream-a)
         while b do
-        (write-byte b stream-b)))
+        (when (not (eql b :continue))
+          (write-byte b stream-b))))
 
 (defun from (options)
   (let* ((result (make-hash-table :test #'equal))
@@ -91,6 +95,10 @@
       ("--help" . "help")
       ("-f" . "--set-file")
       ("--file" . "--set-file")
+      ("-u" . "--enable-unix-conversion")
+      ("-U" . "--disable-unix-conversion")
+      ("--unix" . "--enable-unix-conversion")
+      ("--unix" . "--disable-unix-conversion")
       ("--direction" . "--nrdl-direction"))
     :defaults
     '((:file . "-"))
